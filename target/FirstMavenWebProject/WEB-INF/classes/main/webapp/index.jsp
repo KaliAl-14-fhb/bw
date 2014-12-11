@@ -12,7 +12,7 @@
            die im einleitenden <form>-Tag beim Attribut action angegeben ist.
            Zur unterschiedlichen weiteren Behandlung der übermittelten Daten können Sie mehrere Absendebuttons mit name-Attribut verwenden.
     -->
-    <form method="post" action="s3Uploader" enctype="multipart/form-data">
+    <form method="post" action="S3Uploader" enctype="multipart/form-data">
         Titel: &nbsp;&nbsp;
         <input maxlength="200" name="Titel" id="Titel" type="text" value="Java" /><br />
         Autor:&nbsp;
