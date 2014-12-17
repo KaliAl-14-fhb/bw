@@ -32,8 +32,11 @@ import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 
 /**
+ * Die Klasse lädt die Bilder zu S3 hoch.
+ * Und speichert die eingegebenen Daten des Formulars in die Datenbank -->DynamoDB
  *
  * @author khaled al-ammari
+ * Abgabe Semesterprojekt Systemintegration
  */
 @WebServlet(urlPatterns = {"/S3Uploader"})
 public class S3Uploader extends HttpServlet {
@@ -71,19 +74,12 @@ public class S3Uploader extends HttpServlet {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
-        String titel = request.getParameter("Titel");
-        String autor = request.getParameter("Autor");
-        System.out.println("Titel: " + titel);
-        System.out.println("Autor: " + autor);
-
         try {
-            boolean isMultipart = ServletFileUpload.isMultipartContent(request);
             FileItemFactory factory = new DiskFileItemFactory();
             ServletFileUpload uploader = new ServletFileUpload(factory);
-            //System.out.println(upload.parseRequest(request));
 
             /*
-             * AWS CREDENTIALS
+             * AWS CREDENTIALS generieren
              */
             credentials = null;
             try {
@@ -95,26 +91,26 @@ public class S3Uploader extends HttpServlet {
                                 "location (~/.aws/credentials), and is in valid format.",  e);
             }
             AmazonS3 s3 = new AmazonS3Client(credentials);
-            Region euWest1 = Region.getRegion(Regions.EU_CENTRAL_1);
-            s3.setRegion(euWest1);
+            Region euCentral1 = Region.getRegion(Regions.EU_CENTRAL_1);
+            s3.setRegion(euCentral1);
             /*
              * AWS CREDENTIALS ENDS
              */
 
 
             transferManager = new TransferManager(s3);
-            bucketName = "kalis3";
-            //createAmazonS3Bucket();
+            bucketName = "kalis3"; //festgelegt!!!!
+            //createAmazonS3Bucket(); //kein neues Bucket erstellt!!!
+            /*
+             * Erstellen von einer Liste und Daten erhalten
+             */
             List items = null;
             items = uploader.parseRequest(request);
             Iterator itr = items.iterator();
             while (itr.hasNext()) {
                 FileItem item = (FileItem) itr.next();
-                //File fname = new File(item.getName());
 
                 if (item.isFormField()) {
-
-
                     if(item.getFieldName().equals("Titel")) {
                         titel = item.getString();
                         System.out.println("titel: " + titel);
@@ -131,57 +127,56 @@ public class S3Uploader extends HttpServlet {
                         coverbild = item.getString();
                         System.out.println("coverbild: " + coverbild);
                     }
-
-
                 }
 
-
                 if (item.getName() != null) {
+                    System.out.println(" In != " );
                     String uploadimageName = item.getName();
                     System.out.println("Name der Datei: " + uploadimageName);
                     System.out.println("Name der Datei: " + item.toString()); // name=... StoreLocation=...
 
-                    // File savedFile = new File("C:\\Users\\admink\\Pictures\\Camera Roll\\picture000.jpg");
-                    // Hinzufügen deines lokalen Pfades oder Tomcat webapp Pfad
-                    File savedFile = new File("E:\\RESEARCH\\"+ item.getName());
-                    savedFile.getTotalSpace();
-                    item.write(savedFile);
-                    PutObjectRequest reqObj = new PutObjectRequest(bucketName, item.getName(), savedFile);
-                    System.out.println("Dateiname --> " + uploadimageName);
-                    upload = transferManager.upload(reqObj);
-                    // Um Transfertstaus zu checken
-                    if (upload.isDone() == false) {
-                        //upload.wait(30000);
-                        System.out.println(" Transfer: " + upload.getDescription());
-                        System.out.println(" Zustand: " + upload.getState());
-                        System.out.println(" Progress: " + upload.getProgress().getBytesTransferred());
-                        //Thread.sleep(3000);
-                    }
-                    // Transfers also allow you to set a ProgressListener to receive
-                    // asynchronous notifications about your transfer's progress.
-                    //upload.addProgressListener(myProgressListener);
-                    // Or you can block the current thread and wait for your transfer to
-                    // to complete. If the transfer fails, this method will throw an
-                    // AmazonClientException or AmazonServiceException detailing the reason.
-                    upload.waitForCompletion();
-                    if (upload.isDone() == false) {
-                        //upload.wait(30000);
-                        System.out.println(" Transfer: " + upload.getDescription());
-                        System.out.println(" Zustand: " + upload.getState());
-                        System.out.println(" Progress: " + upload.getProgress().getPercentTransferred());
-                        //Thread.sleep(3000);
-                    }
-                    //out.print("<b>File Upload Successfull !!");
+                    //wenn ein Bild nicht ausgewählt wurde, dann übergib leeren String
+                    if(uploadimageName.isEmpty()){
+                        uploadimageName = " ";
+                    } else {
+                        //ansonsten: Lade Datei hoch zu S3
 
-                        //response.sendRedirect("tabelle.jsp");
-                    /*response.setContentType("text/html");
-                    request.setAttribute("todo", "10");
-                    request.getRequestDispatcher("/tabelle.jsp").forward(request, response);*/
-
-                    //getItems(tablebookslistk);
-                    saveToDynamodb(titel, autor, jahr, verlag, uploadimageName);
-                    response.sendRedirect("tabelle.jsp");
+                        // Hinzufügen deines lokalen Pfades oder Tomcat webapp Pfad
+                        File savedFile = new File("E:\\RESEARCH\\" + item.getName());
+                        savedFile.getTotalSpace();
+                        item.write(savedFile);
+                        PutObjectRequest reqObj = new PutObjectRequest(bucketName, item.getName(), savedFile);
+                        System.out.println("Dateiname --> " + uploadimageName);
+                        upload = transferManager.upload(reqObj);
+                        // Um Transfertstaus zu checken
+                        if (upload.isDone() == false) {
+                            //upload.wait(30000);
+                            System.out.println(" Transfer: " + upload.getDescription());
+                            System.out.println(" Zustand: " + upload.getState());
+                            System.out.println(" Progress: " + upload.getProgress().getBytesTransferred());
+                            //Thread.sleep(3000);
+                        }
+                        upload.waitForCompletion();
+                        if (upload.isDone() == false) {
+                            System.out.println(" Transfer: " + upload.getDescription());
+                            System.out.println(" Zustand: " + upload.getState());
+                            System.out.println(" Progress: " + upload.getProgress().getPercentTransferred());
+                        }
+                    }
+                    // wenn ein Feld im Formular freigelassen wird,
+                    // dann speichere leeren String ab
+                    if(titel.isEmpty()) {
+                        titel = " ";
+                    } if(autor.isEmpty()) {
+                        autor = " ";
+                    } if(jahr.isEmpty()) {
+                        jahr = " ";
+                    } if(verlag.isEmpty()) {
+                        verlag = " ";
+                    }
                     //listMyTables();
+                    saveToDynamodb(tablebookslistk, titel, autor, jahr, verlag, uploadimageName);
+                    response.sendRedirect("tabelle.jsp");
                 }
             }
         } catch (Exception e) {
@@ -190,18 +185,6 @@ public class S3Uploader extends HttpServlet {
             out.close();
         }
     }
-    /* nicht mehr gebraucht, da ein Bucket bereits existiert
-    private void createAmazonS3Bucket() {
-        try {
-            if (transferManager.getAmazonS3Client().doesBucketExist(bucketName) == false) {
-                transferManager.getAmazonS3Client().createBucket(bucketName);
-            }
-        } catch (AmazonClientException ace) {
-            ace.printStackTrace();
-        }
-    }*/
-        // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
-
 
     /**
      * HTTP Handling -->Get
@@ -243,126 +226,18 @@ public class S3Uploader extends HttpServlet {
         }
     }
 
-    /* nicht genutzt
-    @Override
-    public String getServletInfo() {
-
-        return "Short description";
-    }// </editor-fold>
-    */
 
     /*****************************************************
      * SPEICHERUNG AUF DYNAMODB
      *****************************************************/
-    public void saveToDynamodb (String titel, String autor, String jahr, String verlag, String coverbild) {
+    public void saveToDynamodb (String tableName, String titel, String autor, String jahr, String verlag, String coverbild) {
         System.out.println("In Methode saveToDynamodb!");
-
-            try {
-
-                //deleteTable(tablebookslistk);
-                //waitForTableToBeDeleted(tablebookslistk);
-
-                // Parameter1: Tabellenname
-                // Parameter2: gelesen per Sekunde
-                // Parameter3: geschrieben per Sekunde
-                // Parameter4/5: hash key and type
-                // Parameter6/7: range key and type
-
-                //createTable(tablebookslistk, 10L, 5L, "title", "S"); //TODO: fehlen andere attribute!!!!!!
-
-                // waitForTableToBecomeAvailable(tablebookslistk);
-                uploadSampleBooks(tablebookslistk, titel, autor, jahr, verlag, coverbild);
-
-            } catch (AmazonServiceException ase) {
-                System.err.println("Data load script failed: " + ase);
-                ase.printStackTrace();
-            }
-        }
-
-    private static void createTable(String tableName, long readCapacityUnits, long writeCapacityUnits,
-                                    String hashKeyName, String hashKeyType) {
-
-        createTable(tableName, readCapacityUnits, writeCapacityUnits, hashKeyName,  hashKeyType, null, null);
-    }
-
-    private static void createTable(String tableName, long readCapacityUnits, long writeCapacityUnits,
-                                    String hashKeyName, String hashKeyType, String rangeKeyName, String rangeKeyType) {
-
-        try {
-            System.out.println("Erzeugte Tabelle: " + tableName);
-            ArrayList<KeySchemaElement> keySchemaElements = new ArrayList<KeySchemaElement>();
-            ArrayList<AttributeDefinition> attributeDefinitions = new ArrayList<AttributeDefinition>();
-
-            keySchemaElements.add(new KeySchemaElement()
-                    .withAttributeName(hashKeyName)
-                    .withKeyType(KeyType.HASH));
-            attributeDefinitions.add(new AttributeDefinition()
-                    .withAttributeName(hashKeyName)
-                    .withAttributeType(hashKeyType));
-
-            attributeDefinitions.add(new AttributeDefinition()
-                    .withAttributeName("AlbumTitle")
-                    .withAttributeType("S"));
-
-            if (rangeKeyName != null) {
-                keySchemaElements.add(new KeySchemaElement()
-                        .withAttributeName(rangeKeyName)
-                        .withKeyType(KeyType.RANGE));
-                attributeDefinitions.add(new AttributeDefinition()
-                        .withAttributeName(rangeKeyName)
-                        .withAttributeType(rangeKeyType));
-            }
-
-            // Provide initial provisioned throughput values as Java long data types
-            ProvisionedThroughput provisionedthroughput = new ProvisionedThroughput()
-                    .withReadCapacityUnits(readCapacityUnits)
-                    .withWriteCapacityUnits(writeCapacityUnits);
-
-            CreateTableRequest request = new CreateTableRequest()
-                    .withTableName(tableName)
-                    .withKeySchema(keySchemaElements)
-                    .withProvisionedThroughput(provisionedthroughput);
-
-            // If this is the Reply table, define a local secondary index
-            /*if (tableName.equals(tableName)) {
-                attributeDefinitions.add(new AttributeDefinition().withAttributeName("PostedBy").withAttributeType("S"));
-
-                ArrayList<KeySchemaElement> iks = new ArrayList<KeySchemaElement>();
-                iks.add(new KeySchemaElement().withAttributeName(
-                        hashKeyName).withKeyType(KeyType.HASH));
-                iks.add(new KeySchemaElement().withAttributeName(
-                        "PostedBy").withKeyType(KeyType.RANGE));
-
-                LocalSecondaryIndex lsi = new LocalSecondaryIndex().withIndexName("PostedBy-Index")
-                        .withKeySchema(iks)
-                        .withProjection(new Projection().withProjectionType(ProjectionType.KEYS_ONLY));
-
-                ArrayList<LocalSecondaryIndex> localSecondaryIndexes = new ArrayList<LocalSecondaryIndex>();
-                localSecondaryIndexes.add(lsi);
-
-                request.setLocalSecondaryIndexes(localSecondaryIndexes);
-            }*/
-
-            request.setAttributeDefinitions(attributeDefinitions);
-
-            client.createTable(request);
-
-        } catch (AmazonServiceException ase) {
-            System.err.println("Failed to create table " + tableName + " " + ase);
-        }
-    }
-
-
-    private static void uploadSampleBooks(String tableName, String titel, String autor, String jahr, String verlag, String coverbild) {
-
-        System.out.println("Nach Methode uploadsampleBook");
-        System.out.println("Name table: " + tableName);
-        System.out.println("T in uplia " + titel);
+        System.out.println("Tabellenname: " + tableName);
 
 
         try {
             /*+++++++++++++++++++++++++++++++++++++++++++++
-            /* Bücher in DynamoDB SCHREIBEN/HINZUFÜGEN
+            /* Bücher in DynamoDB SCHREIBEN/HINZUFÜGEN von AWS Site Beispiele
              **********************************************/
             Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
             //item.put("id", new AttributeValue().withNS("2")); //.withN("2"));
@@ -376,14 +251,11 @@ public class S3Uploader extends HttpServlet {
                     .withTableName(tableName)
                     .withItem(item);
             PutItemResult result = client.putItem(putItemRequest);
-
-
             //item.get(new AttributeValue("title"));
 
 
-
             /*+++++++++++++++++++++++++++++++++++++++++++++
-            /* Bücher aus DynamoDB LESEN
+            /* Bücher aus DynamoDB LESEN  --->VERSCHOBEN IN DIE tabelle.jsp
              **********************************************/
             //Map<String, AttributeValue> getitem = new HashMap<String, AttributeValue>();
             //getitem.put("Id", new AttributeValue().withN(id));
@@ -399,20 +271,18 @@ public class S3Uploader extends HttpServlet {
             //fetchItems(tableName);
             //getItems(tableName);
 
-
-
-
-
         }   catch (AmazonServiceException ase) {
             System.err.println("Failed to create item in " + tableName + " " + ase);
         }
 
     }
 
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+/* Ab hier zum TESTEN gewesen für mich
+*******************************************************************/
     /*static void listMyTables() {
         String lastEvaluatedTableName = null;
         do {
-
             ListTablesRequest listTablesRequest = new ListTablesRequest()
                     .withLimit(10)
                     .withExclusiveStartTableName(lastEvaluatedTableName);
@@ -443,7 +313,6 @@ public class S3Uploader extends HttpServlet {
 
     //Quelle: http://deveshsharma.info/2013/08/22/how-to-fetch-all-items-from-a-dynamodb-table-in-java/
     /*private static ArrayList<Long> fetchItems(String tableName) {
-
         ArrayList<Long> ids = new ArrayList<Long>();
         ArrayList<String> auts = new ArrayList<String>();
 
@@ -514,7 +383,7 @@ public class S3Uploader extends HttpServlet {
 
 
     //Quelle: https://github.com/amazonwebservices/aws-sdk-for-java/blob/master/src/samples/AmazonDynamoDB/AmazonDynamoDBSample.java
-    static void getItems(String tableName) {
+    /*static void getItems(String tableName) {
         // Scan items for movies with a year attribute greater than 1985
         HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
         Condition condition = new Condition()
@@ -536,11 +405,89 @@ public class S3Uploader extends HttpServlet {
     }
 
 
+    /* nicht mehr gebraucht, da ein Bucket bereits existiert
+    private void createAmazonS3Bucket() {
+        try {
+            if (transferManager.getAmazonS3Client().doesBucketExist(bucketName) == false) {
+                transferManager.getAmazonS3Client().createBucket(bucketName);
+            }
+        } catch (AmazonClientException ace) {
+            ace.printStackTrace();
+        }
+    }*/
+    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
 
+   /* private static void createTable(String tableName, long readCapacityUnits, long writeCapacityUnits,
+                                    String hashKeyName, String hashKeyType) {
 
+        createTable(tableName, readCapacityUnits, writeCapacityUnits, hashKeyName,  hashKeyType, null, null);
+    }
 
+    private static void createTable(String tableName, long readCapacityUnits, long writeCapacityUnits,
+                                    String hashKeyName, String hashKeyType, String rangeKeyName, String rangeKeyType) {
 
+        try {
+            System.out.println("Erzeugte Tabelle: " + tableName);
+            ArrayList<KeySchemaElement> keySchemaElements = new ArrayList<KeySchemaElement>();
+            ArrayList<AttributeDefinition> attributeDefinitions = new ArrayList<AttributeDefinition>();
 
+            keySchemaElements.add(new KeySchemaElement()
+                    .withAttributeName(hashKeyName)
+                    .withKeyType(KeyType.HASH));
+            attributeDefinitions.add(new AttributeDefinition()
+                    .withAttributeName(hashKeyName)
+                    .withAttributeType(hashKeyType));
 
+            attributeDefinitions.add(new AttributeDefinition()
+                    .withAttributeName("AlbumTitle")
+                    .withAttributeType("S"));
 
-}
+            if (rangeKeyName != null) {
+                keySchemaElements.add(new KeySchemaElement()
+                        .withAttributeName(rangeKeyName)
+                        .withKeyType(KeyType.RANGE));
+                attributeDefinitions.add(new AttributeDefinition()
+                        .withAttributeName(rangeKeyName)
+                        .withAttributeType(rangeKeyType));
+            }
+
+            // Provide initial provisioned throughput values as Java long data types
+            ProvisionedThroughput provisionedthroughput = new ProvisionedThroughput()
+                    .withReadCapacityUnits(readCapacityUnits)
+                    .withWriteCapacityUnits(writeCapacityUnits);
+
+            CreateTableRequest request = new CreateTableRequest()
+                    .withTableName(tableName)
+                    .withKeySchema(keySchemaElements)
+                    .withProvisionedThroughput(provisionedthroughput);
+
+            // If this is the Reply table, define a local secondary index
+            /*if (tableName.equals(tableName)) {
+                attributeDefinitions.add(new AttributeDefinition().withAttributeName("PostedBy").withAttributeType("S"));
+
+                ArrayList<KeySchemaElement> iks = new ArrayList<KeySchemaElement>();
+                iks.add(new KeySchemaElement().withAttributeName(
+                        hashKeyName).withKeyType(KeyType.HASH));
+                iks.add(new KeySchemaElement().withAttributeName(
+                        "PostedBy").withKeyType(KeyType.RANGE));
+
+                LocalSecondaryIndex lsi = new LocalSecondaryIndex().withIndexName("PostedBy-Index")
+                        .withKeySchema(iks)
+                        .withProjection(new Projection().withProjectionType(ProjectionType.KEYS_ONLY));
+
+                ArrayList<LocalSecondaryIndex> localSecondaryIndexes = new ArrayList<LocalSecondaryIndex>();
+                localSecondaryIndexes.add(lsi);
+
+                request.setLocalSecondaryIndexes(localSecondaryIndexes);
+            }*/
+
+            /*request.setAttributeDefinitions(attributeDefinitions);
+
+            client.createTable(request);
+
+        } catch (AmazonServiceException ase) {
+            System.err.println("Failed to create table " + tableName + " " + ase);
+        }
+    }*/
+
+} //Klasse beendet
