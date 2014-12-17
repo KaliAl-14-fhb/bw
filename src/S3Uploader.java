@@ -10,7 +10,6 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,12 +31,14 @@ import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 
 /**
- * Die Klasse lädt die Bilder zu S3 hoch.
- * Und speichert die eingegebenen Daten des Formulars in die Datenbank -->DynamoDB
+ * - Die Klasse S3Uploader lädt die Bilder zu S3 hoch.
+ *   Und speichert die eingegebenen Daten des Formulars in die Datenbank -->DynamoDB
  *
  * @author khaled al-ammari
+ * Date: 17.12.2014
  * Abgabe Semesterprojekt Systemintegration
  */
+
 @WebServlet(urlPatterns = {"/S3Uploader"})
 public class S3Uploader extends HttpServlet {
 
@@ -48,8 +49,7 @@ public class S3Uploader extends HttpServlet {
     private Upload upload;
 
     //Attribute (global) für SPEICHERUNG AUF DYNAMODB
-    static AmazonDynamoDBClient client = new AmazonDynamoDBClient(new ProfileCredentialsProvider().getCredentials());
-    static SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    //static SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
     static String tablebookslistk = "buchlistek";
 
     //Attribute für DynamoDB von JSP
@@ -59,132 +59,7 @@ public class S3Uploader extends HttpServlet {
     String verlag = null;
     String coverbild = null;
 
-    /**
-     * Anfrageprozess für HTTP -->post
-     *
-     * @param request
-     * @param response
-     * @throws ServletException wenn Fehler beim Servlet entstehen
-     * @throws IOException wenn Fehler allgemien entstehen
-     * @throws FileUploadException wenn Fehler beim Upload entstehen
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException, FileUploadException {
 
-        response.setContentType("text/html;charset=UTF-8");
-        PrintWriter out = response.getWriter();
-
-        try {
-            FileItemFactory factory = new DiskFileItemFactory();
-            ServletFileUpload uploader = new ServletFileUpload(factory);
-
-            /*
-             * AWS CREDENTIALS generieren
-             */
-            credentials = null;
-            try {
-                credentials = new ProfileCredentialsProvider().getCredentials();
-            } catch (Exception e) {
-                throw new AmazonClientException(
-                        "Cannot load the credentials from the credential profiles file. " +
-                                "Please make sure that your credentials file is at the correct " +
-                                "location (~/.aws/credentials), and is in valid format.",  e);
-            }
-            AmazonS3 s3 = new AmazonS3Client(credentials);
-            Region euCentral1 = Region.getRegion(Regions.EU_CENTRAL_1);
-            s3.setRegion(euCentral1);
-            /*
-             * AWS CREDENTIALS ENDS
-             */
-
-
-            transferManager = new TransferManager(s3);
-            bucketName = "kalis3"; //festgelegt!!!!
-            //createAmazonS3Bucket(); //kein neues Bucket erstellt!!!
-            /*
-             * Erstellen von einer Liste und Daten erhalten
-             */
-            List items = null;
-            items = uploader.parseRequest(request);
-            Iterator itr = items.iterator();
-            while (itr.hasNext()) {
-                FileItem item = (FileItem) itr.next();
-
-                if (item.isFormField()) {
-                    if(item.getFieldName().equals("Titel")) {
-                        titel = item.getString();
-                        System.out.println("titel: " + titel);
-                    } else if(item.getFieldName().equals("Autor")) {
-                        autor = item.getString();
-                        System.out.println("autor: " + autor);
-                    } else if(item.getFieldName().equals("Jahr")) {
-                        jahr = item.getString();
-                        System.out.println("jahr: " + jahr);
-                    } else if(item.getFieldName().equals("Verlag")) {
-                        verlag = item.getString();
-                        System.out.println("verlag: " + verlag);
-                    } else if(item.getFieldName().equals("DateiHochladen")) {
-                        coverbild = item.getString();
-                        System.out.println("coverbild: " + coverbild);
-                    }
-                }
-
-                if (item.getName() != null) {
-                    System.out.println(" In != " );
-                    String uploadimageName = item.getName();
-                    System.out.println("Name der Datei: " + uploadimageName);
-                    System.out.println("Name der Datei: " + item.toString()); // name=... StoreLocation=...
-
-                    //wenn ein Bild nicht ausgewählt wurde, dann übergib leeren String
-                    if(uploadimageName.isEmpty()){
-                        uploadimageName = " ";
-                    } else {
-                        //ansonsten: Lade Datei hoch zu S3
-
-                        // Hinzufügen deines lokalen Pfades oder Tomcat webapp Pfad
-                        File savedFile = new File("E:\\RESEARCH\\" + item.getName());
-                        savedFile.getTotalSpace();
-                        item.write(savedFile);
-                        PutObjectRequest reqObj = new PutObjectRequest(bucketName, item.getName(), savedFile);
-                        System.out.println("Dateiname --> " + uploadimageName);
-                        upload = transferManager.upload(reqObj);
-                        // Um Transfertstaus zu checken
-                        if (upload.isDone() == false) {
-                            //upload.wait(30000);
-                            System.out.println(" Transfer: " + upload.getDescription());
-                            System.out.println(" Zustand: " + upload.getState());
-                            System.out.println(" Progress: " + upload.getProgress().getBytesTransferred());
-                            //Thread.sleep(3000);
-                        }
-                        upload.waitForCompletion();
-                        if (upload.isDone() == false) {
-                            System.out.println(" Transfer: " + upload.getDescription());
-                            System.out.println(" Zustand: " + upload.getState());
-                            System.out.println(" Progress: " + upload.getProgress().getPercentTransferred());
-                        }
-                    }
-                    // wenn ein Feld im Formular freigelassen wird,
-                    // dann speichere leeren String ab
-                    if(titel.isEmpty()) {
-                        titel = " ";
-                    } if(autor.isEmpty()) {
-                        autor = " ";
-                    } if(jahr.isEmpty()) {
-                        jahr = " ";
-                    } if(verlag.isEmpty()) {
-                        verlag = " ";
-                    }
-                    //listMyTables();
-                    saveToDynamodb(tablebookslistk, titel, autor, jahr, verlag, uploadimageName);
-                    response.sendRedirect("tabelle.jsp");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            out.close();
-        }
-    }
 
     /**
      * HTTP Handling -->Get
@@ -198,7 +73,9 @@ public class S3Uploader extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         try {
-            processRequest(request, response);
+
+            //****** Aufruf zur UploadS3 Methode ***********
+            uploadToS3(request, response);
         } catch (FileUploadException ex) {
             Logger.getLogger(S3Uploader.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -219,7 +96,8 @@ public class S3Uploader extends HttpServlet {
             String title = request.getParameter("Titel");
             System.out.println("Titel ist : " + title);
 
-            processRequest(request, response);
+            //****** Aufruf zur UploadS3 Methode ***********
+            uploadToS3(request, response);
 
         } catch (FileUploadException ex) {
             Logger.getLogger(S3Uploader.class.getName()).log(Level.SEVERE, null, ex);
@@ -227,55 +105,295 @@ public class S3Uploader extends HttpServlet {
     }
 
 
+
+    /**
+     * Anfrageprozess (uploadToS3) für HTTP -->post
+     *
+     * @param request
+     * @param response
+     * @throws ServletException wenn Fehler beim Servlet entstehen
+     * @throws IOException wenn Fehler allgemien entstehen
+     * @throws FileUploadException wenn Fehler beim Upload entstehen
+     */
+    protected void uploadToS3(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException, FileUploadException {
+
+        //response.setContentType("text/html;charset=UTF-8");
+        PrintWriter out = response.getWriter();
+
+        try {
+            FileItemFactory factory = new DiskFileItemFactory();
+            ServletFileUpload uploader = new ServletFileUpload(factory);
+
+                    // ************* AWS CREDENTIALS generieren   *************
+                            credentials = null;
+                            try {
+                                credentials = new ProfileCredentialsProvider().getCredentials(); //holt credentials aus der Angelegte Datei ./aws...
+
+                                
+
+                            } catch (Exception e) {
+                                throw new AmazonClientException(
+                                        "Cannot load the credentials from the credential profiles file. " +
+                                                "Please make sure that your credentials file is at the correct " +
+                                                "location (~/.aws/credentials), and is in valid format.",
+                                        e);
+                            }
+                            AmazonS3 s3 = new AmazonS3Client(credentials);
+                            Region euCentral1 = Region.getRegion(Regions.EU_CENTRAL_1);
+                            s3.setRegion(euCentral1);
+
+
+
+                   // ************* AWS transferManager generieren   *************
+                            transferManager = new TransferManager(s3);
+
+                   // ************* AWS bucketName  *************
+                            bucketName = "kalis3"; //festgelegt!!!!
+                            //createAmazonS3Bucket(); //kein neues Bucket erstellt!!!
+
+
+                   // ************* Liste erstellen und Daten erhalten vom Webseite 1   *************
+                            List items = null;
+                            items = uploader.parseRequest(request);
+                            Iterator itr = items.iterator();
+                            while (itr.hasNext()) {
+                                FileItem item = (FileItem) itr.next();
+
+                                if (item.isFormField()) {
+                                    if(item.getFieldName().equals("Titel")) {
+                                        titel = item.getString();
+                                        System.out.println("titel: " + titel);
+                                    } else if(item.getFieldName().equals("Autor")) {
+                                        autor = item.getString();
+                                        System.out.println("autor: " + autor);
+                                    } else if(item.getFieldName().equals("Jahr")) {
+                                        jahr = item.getString();
+                                        System.out.println("jahr: " + jahr);
+                                    } else if(item.getFieldName().equals("Verlag")) {
+                                        verlag = item.getString();
+                                        System.out.println("verlag: " + verlag);
+                                    } else if(item.getFieldName().equals("DateiHochladen")) {
+                                        coverbild = item.getString();
+                                        System.out.println("coverbild: " + coverbild);
+                                    }
+                                }
+
+                                if (item.getName() != null) {
+                                    String uploadimageName = item.getName();
+                                    System.out.println("Name der Datei: " + uploadimageName);
+                                    System.out.println("Name der Datei: " + item.toString()); // name=... StoreLocation=...
+
+                                    // ************* wenn ein Bild nicht ausgewählt wurde, dann übergib leeren String *************
+                                        if(uploadimageName.isEmpty()){
+                                            uploadimageName = " ";
+                                        } else {
+                                            //ansonsten: Lade Datei hoch zu S3
+
+
+                                            uploadimageName = proofIfBildNameExists(uploadimageName);
+                                            System.out.println("KOPIE uploadimageName " + uploadimageName);
+
+                                            // Hinzufügen lokalen Pfades oder Tomcat webapp Pfad
+                                            File savedFile = new File(uploadimageName);
+                                            savedFile.getTotalSpace();
+                                            item.write(savedFile);
+                                            PutObjectRequest reqObj = new PutObjectRequest(bucketName, uploadimageName, savedFile);
+                                            System.out.println("Dateiname --> " + uploadimageName);
+                                            upload = transferManager.upload(reqObj);
+                                            // Um Transfertstaus zu checken
+                                            if (upload.isDone() == false) {
+                                                //upload.wait(30000);
+                                                System.out.println(" Transfer: " + upload.getDescription());
+                                                System.out.println(" Zustand: " + upload.getState());
+                                                System.out.println(" Progress: " + upload.getProgress().getBytesTransferred());
+                                                //Thread.sleep(3000);
+                                            }
+                                            upload.waitForCompletion();
+                                            if (upload.isDone() == false) {
+                                                System.out.println(" Transfer: " + upload.getDescription());
+                                                System.out.println(" Zustand: " + upload.getState());
+                                                System.out.println(" Progress: " + upload.getProgress().getPercentTransferred());
+                                            }
+                                        }
+
+
+                                   // ************* wenn ein Feld im Formular freigelassen wird, dann speichere leeren String ab *************
+                                            if(titel.isEmpty()) {
+                                                titel = " ";
+                                            } if(autor.isEmpty()) {
+                                                autor = " ";
+                                            } if(jahr.isEmpty()) {
+                                                jahr = " ";
+                                            } if(verlag.isEmpty()) {
+                                                verlag = " ";
+                                            }
+
+
+                                     // *****************************************************
+                                     //       Zweite Schritt: Daten in DynamoDB speichern
+                                     //*****************************************************
+                                            // listMyTables();
+                                            saveToDynamodb(tablebookslistk, titel, autor, jahr, verlag, uploadimageName);
+
+                                    // ************* Danach weiterleitung zur Webseite 2 *************
+                                            response.sendRedirect("tabelle.jsp");
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            out.close();
+        }
+    }
+
+
+
     /*****************************************************
-     * SPEICHERUNG AUF DYNAMODB
+     ********** SPEICHERUNG AUF DYNAMODB *****************
      *****************************************************/
     public void saveToDynamodb (String tableName, String titel, String autor, String jahr, String verlag, String coverbild) {
         System.out.println("In Methode saveToDynamodb!");
         System.out.println("Tabellenname: " + tableName);
 
 
-        try {
-            /*+++++++++++++++++++++++++++++++++++++++++++++
-            /* Bücher in DynamoDB SCHREIBEN/HINZUFÜGEN von AWS Site Beispiele
-             **********************************************/
-            Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
-            //item.put("id", new AttributeValue().withNS("2")); //.withN("2"));
-            item.put("title", new AttributeValue().withS(titel)); // .withS("Book 101 Title"));
-            item.put("autor", new AttributeValue().withS(autor)); // .withS("Book 101 Title"));
-            item.put("jahr", new AttributeValue().withS(jahr)); // .withS("Book 101 Title"));
-            item.put("verlag", new AttributeValue().withS(verlag)); // .withS("Book 101 Title"));
-            item.put("coverbild", new AttributeValue().withS(coverbild)); // .withS("Book 101 Title"))
 
-            PutItemRequest putItemRequest = new PutItemRequest()
-                    .withTableName(tableName)
-                    .withItem(item);
-            PutItemResult result = client.putItem(putItemRequest);
-            //item.get(new AttributeValue("title"));
+                                    // *************  Bücher in DynamoDB SCHREIBEN/HINZUFÜGEN von AWS Site Beispiele  ********************
+                                    try {
+                                        Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
+                                        //item.put("id", new AttributeValue().withNS("2")); //.withN("2"));
+                                        item.put("title", new AttributeValue().withS(titel)); // .withS("Book 101 Title"));
+                                        item.put("autor", new AttributeValue().withS(autor)); // .withS("Book 101 Title"));
+                                        item.put("jahr", new AttributeValue().withS(jahr)); // .withS("Book 101 Title"));
+                                        item.put("verlag", new AttributeValue().withS(verlag)); // .withS("Book 101 Title"));
+                                        item.put("coverbild", new AttributeValue().withS(coverbild)); // .withS("Book 101 Title"))
 
 
-            /*+++++++++++++++++++++++++++++++++++++++++++++
-            /* Bücher aus DynamoDB LESEN  --->VERSCHOBEN IN DIE tabelle.jsp
-             **********************************************/
-            //Map<String, AttributeValue> getitem = new HashMap<String, AttributeValue>();
-            //getitem.put("Id", new AttributeValue().withN(id));
+                                        // ************* AWS CREDENTIALS generieren   *************
+                                                credentials = null;
+                                                try {
+                                                    credentials = new ProfileCredentialsProvider().getCredentials(); //holt credentials aus der Angelegte Datei ./aws...
 
-            /*GetItemRequest getItemRequest = new GetItemRequest()
-                    .withTableName(tableName)
-                    .withKey(item);
-                    //.withProjectionExpression("title, autor, jahr, verlag, coverbild");
-            GetItemResult resultget = client.getItem(getItemRequest);
-            System.out.println("Printing item " + resultget);
-            printItem(resultget.getItem());*/
 
-            //fetchItems(tableName);
-            //getItems(tableName);
+                                                } catch (Exception e) {
+                                                    throw new AmazonClientException(
+                                                            "Cannot load the credentials from the credential profiles file. " +
+                                                                    "Please make sure that your credentials file is at the correct " +
+                                                                    "location (~/.aws/credentials), and is in valid format.",
+                                                            e);
+                                                }
 
-        }   catch (AmazonServiceException ase) {
-            System.err.println("Failed to create item in " + tableName + " " + ase);
-        }
+                                              // ************* Amazon DynamoDB Client   *************
+                                                AmazonDynamoDBClient client = new AmazonDynamoDBClient(credentials);
+
+                                                PutItemRequest putItemRequest = new PutItemRequest()
+                                                        .withTableName(tableName)
+                                                        .withItem(item);
+                                                PutItemResult result = client.putItem(putItemRequest);
+
+
+                                    }   catch (AmazonServiceException ase) {
+                                        System.err.println("Failed to create item in " + tableName + " " + ase);
+                                    }
 
     }
+
+    /*******************************************************************
+     ********** Zusatz Aufgabe:
+     *          Beim hochladen das gleiche Bild, wird das Bild umbenennt
+     *
+     ********************************************************************/
+    protected String proofIfBildNameExists(String uploadimagename) {
+
+                    // *************************************************************************
+                    //               1. Die Namen der Bilder aus DynamoDB auslesen und vergleichen
+                    //                  Die gleiche Funktion wie in der Tabelle
+                    // *************************************************************************
+
+                        // ************* AWS CREDENTIALS generieren   *************
+                            credentials = null;
+                            try {
+                                credentials = new ProfileCredentialsProvider().getCredentials(); //holt credentials aus der Angelegte Datei ./aws...
+
+
+                            } catch (Exception e) {
+                                throw new AmazonClientException(
+                                        "Cannot load the credentials from the credential profiles file. " +
+                                                "Please make sure that your credentials file is at the correct " +
+                                                "location (~/.aws/credentials), and is in valid format.",
+                                        e);
+                            }
+
+                    // ************* Amazon DynamoDB Client   *************
+                        AmazonDynamoDBClient client = new AmazonDynamoDBClient(credentials);
+
+                        HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
+                        Condition condition = new Condition()
+                                .withComparisonOperator(ComparisonOperator.GT.toString())
+                                .withAttributeValueList(new AttributeValue().withS("title"));
+                        scanFilter.put("NeuesBuch4", condition);
+                        ScanRequest scanRequest = new ScanRequest("buchlistek").withScanFilter(scanFilter);
+                        ScanResult scanResult = client.scan(scanRequest);
+                        System.out.println("Result: " + scanResult);
+
+                        ArrayList<Long> ids = new ArrayList<Long>();
+                        ArrayList<String> auts = new ArrayList<String>();
+
+                        ArrayList<AttributeValue> listValues = new ArrayList<AttributeValue>();
+
+                        ScanResult result = null;
+
+                        do{
+                            ScanRequest req = new ScanRequest();
+                            req.setTableName("buchlistek");
+
+                            if(result != null){
+                                System.out.println("In if result != null");
+                                req.setExclusiveStartKey(result.getLastEvaluatedKey());
+                            }
+                            result = client.scan(req);
+                            List<Map<String, AttributeValue>> rows = result.getItems();
+
+                            for(Map<String, AttributeValue> map : rows){
+                                System.out.println(listValues.toString());
+                                try{
+                                    //COVERBILD
+                                    AttributeValue cov = map.get("coverbild");
+                                    String covString = cov.toString();
+
+                                    if (covString.startsWith("{S: ")) {
+                                        covString = covString.replace("{S: ", "");
+                                    }
+                                    if (covString.endsWith(",}")) {
+                                        covString = covString.replace(",}", "");
+                                    }
+
+                                    System.out.println("covString.toString()" + covString.toString());
+
+
+                                    // ***********************************************************************************
+                                    //  2. Wenn die Namen der Bilder gleich sind, dann benenne es um (_Kopie) in DynamoDB
+                                    // ***********************************************************************************
+                                                    if(uploadimagename.equals(covString)) {
+                                                        uploadimagename = uploadimagename + "_Kopie";
+                                                        System.out.println(uploadimagename);
+                                                        return uploadimagename;
+                                                    }
+
+                                }   catch (NumberFormatException e){
+                                        System.out.println(e.getMessage());
+                                    }
+
+                            }
+                        } while(result.getLastEvaluatedKey() != null);
+                            return uploadimagename;
+    }
+} //Klasse beendet
+
+
+
+
+
 
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /* Ab hier zum TESTEN gewesen für mich
@@ -490,4 +608,3 @@ public class S3Uploader extends HttpServlet {
         }
     }*/
 
-} //Klasse beendet
