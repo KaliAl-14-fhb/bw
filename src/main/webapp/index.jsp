@@ -18,12 +18,12 @@
         Autor:&nbsp;
         <input maxlength="200" name="Autor" type="text" value="Khali" /><br />
         Jahr:&nbsp;&nbsp;&nbsp;
-        <input maxlength="200" name="Jahr" type="text" value="2014" /><br />
+        <input maxlength="200" name="Jahr" type="number" min="1900" max="2015" value="2014" /><br />
         Verlag:
         <input maxlength="200" name="Verlag" type="text" value="FHB" /><br />
         Cover Bild:
         <input name="DateiHochladen" id="DateiHochladen" type="file" size="50" maxlength="100000" ><br />
-        Absenden
+
         <input type="submit" value="Absenden ">
     </form>
 </body>

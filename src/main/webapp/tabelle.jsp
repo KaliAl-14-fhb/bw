@@ -19,10 +19,6 @@
 
 <h1>Auflistung gelesener Bücher</h1>
 
-
-
-
-
 <%
   AmazonDynamoDBClient client = new AmazonDynamoDBClient(new ProfileCredentialsProvider().getCredentials());
 
@@ -37,7 +33,7 @@
 %>
 
 <table border="1" cellpadding="1" cellspacing="1" height="91" width="687">
-  <thead>
+  <thead style="background-color:orange">
   <tr>
     <th scope="col">TITEL</th>
     <th scope="col">AUTOR</th>
@@ -112,39 +108,33 @@
           covString = covString.replace(",}", "");
         }
 
+        System.out.println("covString.toString()" + covString.toString());
+
                     %>
                       <tr>
-                        <td>  <%= tiString.toString() %> </td>
-                        <td>  <%= auString.toString() %> </td>
-                        <td>  <%= jaString.toString() %> </td>
-                        <td>  <%= verString.toString() %> </td>
-                        <td>  <img src="http://d932q28ou71at.cloudfront.net/<%= covString.toString() %>" width="150" height="50" /> </td>
+                        <td style="height:50px"><p>  <%= tiString.toString() %> </p></td>
+                        <td style="height:50px"><p>  <%= auString.toString() %> </p></td>
+                        <td style="height:50px"><p>  <%= jaString.toString() %> </p></td>
+                        <td style="height:50px"><p>  <%= verString.toString() %> </p></td>
+                        <td style="height:50px; text-align: center;">
+                          <p>
+                            <% if(covString.toString().equals(" ")) {
+                                %> <span></span> <%
+                               } else{ %>
+                          <img src="http://d2d41ikylc9g86.cloudfront.net/<%= covString.toString() %>" width="150" height="50" />
+                            <% } %>
+                          </p>
+                        </td>
+                        <!-- Vorher die "bucket policy" unter "properties" im bucket>kalis3 einstellen, um alle hochgeladenen Bilder für everyone zur Verfügung zu stellen und Cloudfront Zugriff zu gewähren -->
                       </tr>
                     <%
 
                 } catch (NumberFormatException e){
-                    System.out.println("In CATCH");
                     System.out.println(e.getMessage());
                 }
 
             }
         } while(result.getLastEvaluatedKey() != null);
-        System.out.println("NAch WHILE");
-
-        /*for(AttributeValue attr: listValues) {
-            System.out.println(attr);
-        }*/
-        //System.out.println(listValues.toString());
-
-
-
-        //System.out.println("Result size: " + ids.size());
-        /*for(String name: auts) {
-            System.out.println(name);
-        }*/
-        //System.out.println("Autor: " + auts.get());
-
-        System.out.println("vor ids return");
 %>
 
 
@@ -167,10 +157,5 @@
     <td>&nbsp;</td>-->
   </tbody>
 </table>
-
-
-
-
-
 </body>
 </html>
